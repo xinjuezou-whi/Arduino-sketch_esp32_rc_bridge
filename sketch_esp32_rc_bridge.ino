@@ -1,33 +1,28 @@
-/*
-* Brian R Taylor
-* brian.taylor@bolderflight.com
-* 
-* Copyright (c) 2022 Bolder Flight Systems Inc
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the “Software”), to
-* deal in the Software without restriction, including without limitation the
-* rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-* sell copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-* IN THE SOFTWARE.
-*/
+/******************************************************************
+Bridge the SBUS between Remote controller and other IIC devices
 
+Features:
+- SBUS signal
+- I2C with master
+- xxx
+
+Dependency:
+- xxx
+
+Written by Xinjue Zou, xinjue.zou@outlook.com
+
+Apache License Version 2.0, check LICENSE for more information.
+All text above must be included in any redistribution.
+
+Changelog:
+2023-11-21: initial version
+2023-xx-xx: xxx
+******************************************************************/
 #include "sbus.h"
 #include <HardwareSerial.h>
 #include <Wire.h>
 
-const String VERSION("00.01");
+const String VERSION("00.02");
 
 // hardware serial: UART1
 HardwareSerial SBUSS(1);
@@ -85,6 +80,7 @@ int to_min_max_[MAX_CHANNELS][2] =
 const int DEVICE_ADDR = 8;
 const uint8_t SEND_DATA_SIZE = MAX_CHANNELS; // 1 byte for ecah rc channel
 const uint8_t RECV_DATA_SIZE = 32; // Wire library has a softlimit up to 32 bytes
+byte raw_data_[SEND_DATA_SIZE] = { 0 };
 byte send_data_[SEND_DATA_SIZE] = { 0 };
 byte recv_data_[RECV_DATA_SIZE] = { 0 };
 
@@ -92,6 +88,21 @@ byte recv_data_[RECV_DATA_SIZE] = { 0 };
 // this function is registered as an event, see setup()
 void requestEvent()
 {
+  // check if data is valid
+  for (uint8_t i = 0; i < SEND_DATA_SIZE; ++i)
+  {
+    send_data_[i] = raw_data_[i];
+    if (send_data_[i] < to_min_max_[i][0] || send_data_[i] > to_min_max_[i][1])
+    {
+      for (uint8_t j = 0; j < SEND_DATA_SIZE; ++j)
+      {
+        send_data_[j] = 255;
+      }
+
+      break;
+    }
+  }
+
   Wire.write(send_data_, SEND_DATA_SIZE);
 }
 
@@ -129,10 +140,10 @@ void loop () {
     /* Display the received data */
     for (int8_t i = 0; i < data.NUM_CH; i++)
     {
-      send_data_[i] = byte(map(int(data.ch[i]), from_min_max_[i][0], from_min_max_[i][1], to_min_max_[i][0], to_min_max_[i][1]));
+      raw_data_[i] = byte(map(int(data.ch[i]), from_min_max_[i][0], from_min_max_[i][1], to_min_max_[i][0], to_min_max_[i][1]));
 #ifdef DEBUG
       // Serial.print(data.ch[i]);
-      Serial.print(send_data_[i]);
+      Serial.print(raw_data_[i]);
       Serial.print(",");
 #endif
     }
